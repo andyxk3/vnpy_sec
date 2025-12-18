@@ -1,8 +1,8 @@
-from typing import Any, Dict, List
+from typing import Any
 from datetime import datetime
 from copy import copy
 
-from vnpy.event import EventEngine
+from vnpy.event import EventEngine, Event
 from vnpy.trader.event import EVENT_TIMER
 from vnpy.trader.constant import (
     Exchange,
@@ -52,54 +52,54 @@ from ..api import (
 
 
 # 多空方向映射
-DIRECTION_VT2SEC: Dict[Direction, int] = {
+DIRECTION_VT2SEC: dict[Direction, int] = {
     Direction.LONG: DFITCSEC_ED_Buy,
     Direction.SHORT: DFITCSEC_ED_Sell
 }
-DIRECTION_SEC2VT: Dict[int, Direction] = {v: k for k, v in DIRECTION_VT2SEC.items()}
+DIRECTION_SEC2VT: dict[int, Direction] = {v: k for k, v in DIRECTION_VT2SEC.items()}
 
 # 股票委托类型映射
-STOCK_PRICE_TYPE_SEC2VT: Dict[int, OrderType] = {
+STOCK_PRICE_TYPE_SEC2VT: dict[int, OrderType] = {
     DFITCSEC_OT_LimitPrice: OrderType.LIMIT,
     DFITCSEC_OT_SHBESTFRTradeLeftWithdraw: OrderType.MARKET
 }
-STOCK_PRICE_TYPE_VT2SEC: Dict[OrderType, int] = {v: k for k, v in STOCK_PRICE_TYPE_SEC2VT.items()}
+STOCK_PRICE_TYPE_VT2SEC: dict[OrderType, int] = {v: k for k, v in STOCK_PRICE_TYPE_SEC2VT.items()}
 
 # 期权委托类型映射
-OPTION_PRICE_TYPE_SEC2VT: Dict[int, OrderType] = {
+OPTION_PRICE_TYPE_SEC2VT: dict[int, OrderType] = {
     DFITCSEC_SOP_LimitPrice: OrderType.LIMIT,
     DFITCSEC_SOP_LastPrice: OrderType.MARKET
 }
-OPTION_PRICE_TYPE_VT2SEC: Dict[OrderType, int] = {v: k for k, v in OPTION_PRICE_TYPE_SEC2VT.items()}
+OPTION_PRICE_TYPE_VT2SEC: dict[OrderType, int] = {v: k for k, v in OPTION_PRICE_TYPE_SEC2VT.items()}
 
 # 开平方向映射
-OFFSET_VT2SEC: Dict[Offset, int] = {
+OFFSET_VT2SEC: dict[Offset, int] = {
     Offset.OPEN: DFITCSEC_OCF_Open,
     Offset.CLOSE: DFITCSEC_OCF_Close,
 }
-OFFSET_SEC2VT: Dict[int, Offset] = {v: k for k, v in OFFSET_VT2SEC.items()}
+OFFSET_SEC2VT: dict[int, Offset] = {v: k for k, v in OFFSET_VT2SEC.items()}
 
 # 交易所映射
-EXCHANGE_SEC2VT: Dict[str, Exchange] = {
+EXCHANGE_SEC2VT: dict[str, Exchange] = {
     DFITCSEC_EI_SH: Exchange.SSE,
     DFITCSEC_EI_SZ: Exchange.SZSE
 }
-EXCHANGE_VT2SEC: Dict[Exchange, int] = {v: k for k, v in EXCHANGE_SEC2VT.items()}
+EXCHANGE_VT2SEC: dict[Exchange, str] = {v: k for k, v in EXCHANGE_SEC2VT.items()}
 
 # 期权类型映射
-OPTION_TYPE_SEC2VT: Dict[int, OptionType] = {
+OPTION_TYPE_SEC2VT: dict[int, OptionType] = {
     DFITCSEC_OT_CALL: OptionType.CALL,
     DFITCSEC_OT_PUT: OptionType.PUT
 }
 
 # 对冲方向映射
-HEDGE_DIRECTION: Dict[int, int] = {
+HEDGE_DIRECTION: dict[int, int] = {
     DFITCSEC_ED_Buy: 2,
     DFITCSEC_ED_Sell: 1
 }
 
 # 采集类型映射
-COLLECTION_TYPE_VT2SEC: Dict[str, int] = {
+COLLECTION_TYPE_VT2SEC: dict[str, int] = {
     "顶点": DFITCSEC_COLLECTTYPE_APEX,
     "恒生": DFITCSEC_COLLECTTYPE_HS,
     "金证": DFITCSEC_COLLECTTYPE_KD,
@@ -107,7 +107,7 @@ COLLECTION_TYPE_VT2SEC: Dict[str, int] = {
 }
 
 # 行情压缩映射
-COMPRESS_VT2SEC: Dict[str, int] = {
+COMPRESS_VT2SEC: dict[str, int] = {
     "Y": DFITCSEC_COMPRESS_TRUE,
     "N": DFITCSEC_COMPRESS_FALSE
 }
@@ -116,7 +116,7 @@ COMPRESS_VT2SEC: Dict[str, int] = {
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
 
 # 合约数据全局缓存字典
-symbol_contract_map: Dict[str, ContractData] = {}
+symbol_contract_map: dict[str, ContractData] = {}
 
 
 class SecGateway(BaseGateway):
@@ -126,7 +126,7 @@ class SecGateway(BaseGateway):
 
     default_name: str = "SEC"
 
-    default_setting: Dict[str, Any] = {
+    default_setting: dict[str, Any] = {
         "账号": "",
         "行情密码": "",
         "交易密码": "",
@@ -139,14 +139,16 @@ class SecGateway(BaseGateway):
         "行情压缩": ["N", "Y"],
     }
 
-    exchanges: List[Exchange] = list(EXCHANGE_VT2SEC.keys())
+    exchanges: list[Exchange] = list(EXCHANGE_VT2SEC.keys())
 
     def __init__(self, event_engine: EventEngine, gateway_name: str) -> None:
         """构造函数"""
         super().__init__(event_engine, gateway_name)
 
-        self.md_api: "SecMdApi" = SecMdApi(self)
-        self.td_api: "SecTdApi" = SecTdApi(self)
+        self.md_api: SecMdApi = SecMdApi(self)
+        self.td_api: SecTdApi = SecTdApi(self)
+
+        self.count: int = 0
 
     def connect(self, setting: dict) -> None:
         """连接交易接口"""
@@ -224,10 +226,10 @@ class SecGateway(BaseGateway):
         """输出错误信息日志"""
         error_id: int = error["errorID"]
         error_msg: str = error["errorMsg"]
-        msg: str = f"{msg}，代码：{error_id}，信息：{error_msg}"
+        msg = f"{msg}，代码：{error_id}，信息：{error_msg}"
         self.write_log(msg)
 
-    def process_timer_event(self, event) -> None:
+    def process_timer_event(self, event: Event) -> None:
         """定时事件处理"""
         self.count += 1
         if self.count < 2:
@@ -240,7 +242,7 @@ class SecGateway(BaseGateway):
 
     def init_query(self) -> None:
         """初始化查询任务"""
-        self.count: int = 0
+        self.count = 0
         self.query_functions: list = [self.query_account, self.query_position]
         self.event_engine.register(EVENT_TIMER, self.process_timer_event)
 
@@ -271,7 +273,7 @@ class SecMdApi(MdApi):
         self.sse_inited: bool = False
         self.szse_inited: bool = False
 
-    def onFrontConnected(self):
+    def onFrontConnected(self) -> None:
         """服务器连接成功回报"""
         self.login_server()
         self.connect_status = True
@@ -472,7 +474,7 @@ class SecMdApi(MdApi):
                 self.subscribeSOPMarketData(symbol, self.reqid)
 
             else:
-                symbol: str = str(EXCHANGE_VT2SEC[req.exchange] + req.symbol)
+                symbol = str(EXCHANGE_VT2SEC[req.exchange] + req.symbol)
                 self.subscribeStockMarketData(symbol, self.reqid)
 
             self.subscribed.add(req.symbol)
@@ -494,18 +496,17 @@ class SecTdApi(TdApi):
 
         self.accountid: str = ""
         self.password: str = ""
-        self.auth_code: str = ""
         self.compress_flag: int = 0
         self.auth_code: str = ""
         self.app_id: str = ""
         self.collection_type: int = 1
         self.trading_day: str = ""
-        self.positions: Dict[tuple, PositionData] = {}
+        self.positions: dict[tuple, PositionData] = {}
 
         self.sessionid: str = ""
         self.reqid: int = 0
         self.localid: int = 10000
-        self.orders: Dict[str, OrderData] = {}
+        self.orders: dict[str, OrderData] = {}
         self.tradeids: set = set()
 
         self.connect_status: bool = False
@@ -559,7 +560,7 @@ class SecTdApi(TdApi):
             timestamp: str = self.trading_day + str(data["entrustTime"])
             dt: datetime = generate_datetime(timestamp)
 
-            order: OrderData = OrderData(
+            order = OrderData(
                 symbol=data["securityID"],
                 exchange=EXCHANGE_SEC2VT[data["exchangeID"]],
                 orderid=orderid,
@@ -592,7 +593,7 @@ class SecTdApi(TdApi):
             timestamp: str = self.trading_day + str(data["entrustTime"])
             dt: datetime = generate_datetime(timestamp)
 
-            order: OrderData = OrderData(
+            order = OrderData(
                 symbol=data["securityID"],
                 exchange=EXCHANGE_SEC2VT[data["exchangeID"]],
                 orderid=orderid,
@@ -706,12 +707,12 @@ class SecTdApi(TdApi):
         if orderid in self.orders:
             order: OrderData = self.orders[orderid]
             dt: datetime = datetime.now()
-            dt: datetime = dt.replace(tzinfo=CHINA_TZ)
+            dt = dt.replace(tzinfo=CHINA_TZ)
             order.datetime = dt
         else:
             timestamp: str = self.trading_day + str(data["entrustTime"])
-            dt: datetime = generate_datetime(timestamp)
-            order: OrderData = OrderData(
+            dt = generate_datetime(timestamp)
+            order = OrderData(
                 symbol=data["securityID"],
                 exchange=EXCHANGE_SEC2VT[data["exchangeID"]],
                 orderid=orderid,
@@ -741,7 +742,7 @@ class SecTdApi(TdApi):
             timestamp: str = self.trading_day + str(data["entrustTime"])
             dt: datetime = generate_datetime(timestamp)
 
-            order: OrderData = OrderData(
+            order = OrderData(
                 symbol=data["securityID"],
                 exchange=EXCHANGE_SEC2VT[data["exchangeID"]],
                 orderid=orderid,
@@ -770,7 +771,7 @@ class SecTdApi(TdApi):
 
             if order:
                 dt: datetime = datetime.now()
-                dt: datetime = dt.replace(tzinfo=CHINA_TZ)
+                dt = dt.replace(tzinfo=CHINA_TZ)
                 order.datetime = dt
                 order.status = Status.REJECTED
                 self.gateway.on_order(order)
@@ -787,7 +788,7 @@ class SecTdApi(TdApi):
 
             if order:
                 dt: datetime = datetime.now()
-                dt: datetime = dt.replace(tzinfo=CHINA_TZ)
+                dt = dt.replace(tzinfo=CHINA_TZ)
                 order.datetime = dt
                 order.status = Status.REJECTED
                 self.gateway.on_order(order)
@@ -861,7 +862,7 @@ class SecTdApi(TdApi):
                 ("159919", Exchange.SZSE, "嘉实沪深300ETF"),
             ]
             for symbol, exchange, name in etfs:
-                contract: ContractData = ContractData(
+                contract = ContractData(
                     symbol=symbol,
                     exchange=exchange,
                     name=name,
@@ -1030,7 +1031,7 @@ class SecTdApi(TdApi):
         )
         self.orders[orderid] = order
 
-        return order.vt_orderid
+        return order.vt_orderid     # type: ignore
 
     def cancel_order(self, req: CancelRequest) -> None:
         """委托撤单"""
@@ -1103,7 +1104,7 @@ class SecTdApi(TdApi):
             self.exit()
 
 
-def check_option_symbol(symbol) -> bool:
+def check_option_symbol(symbol: str) -> bool:
     """检查期权合约"""
     if len(symbol) > 6:
         return True
@@ -1112,14 +1113,14 @@ def check_option_symbol(symbol) -> bool:
 
 def get_option_index(strike_price: float, exchange_instrument_id: str) -> str:
     """获取期权索引"""
-    exchange_instrument_id: str = exchange_instrument_id.replace(" ", "")
+    exchange_instrument_id = exchange_instrument_id.replace(" ", "")
 
     if "M" in exchange_instrument_id:
         n: int = exchange_instrument_id.index("M")
     elif "A" in exchange_instrument_id:
-        n: int = exchange_instrument_id.index("A")
+        n = exchange_instrument_id.index("A")
     elif "B" in exchange_instrument_id:
-        n: int = exchange_instrument_id.index("B")
+        n = exchange_instrument_id.index("B")
     else:
         return str(strike_price)
 
@@ -1132,5 +1133,5 @@ def get_option_index(strike_price: float, exchange_instrument_id: str) -> str:
 def generate_datetime(timestamp: str) -> datetime:
     """生成时间"""
     dt: datetime = datetime.strptime(timestamp, "%Y%m%d%H:%M:%S.%f")
-    dt: datetime = dt.replace(tzinfo=CHINA_TZ)
+    dt = dt.replace(tzinfo=CHINA_TZ)
     return dt
