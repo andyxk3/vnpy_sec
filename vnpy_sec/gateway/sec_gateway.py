@@ -364,7 +364,7 @@ class SecMdApi(MdApi):
         tick.ask_volume_4 = data["askQty4"]
         tick.ask_volume_5 = data["askQty5"]
 
-        contract: ContractData = symbol_contract_map.get(tick.symbol, None)
+        contract: ContractData | None = symbol_contract_map.get(tick.symbol, None)
         if contract:
             tick.name = contract.name
 
@@ -416,7 +416,7 @@ class SecMdApi(MdApi):
         tick.ask_volume_4 = data["askQty4"]
         tick.ask_volume_5 = data["askQty5"]
 
-        contract: ContractData = symbol_contract_map.get(tick.symbol, None)
+        contract: ContractData | None = symbol_contract_map.get(tick.symbol, None)
         if contract:
             tick.name = contract.name
 
@@ -640,7 +640,7 @@ class SecTdApi(TdApi):
             self.gateway.on_trade(trade)
 
         # 获取缓存的委托信息
-        order: OrderData = self.orders.get(orderid, None)
+        order: OrderData | None = self.orders.get(orderid, None)
         if not order:
             return
 
@@ -682,7 +682,7 @@ class SecTdApi(TdApi):
             self.gateway.on_trade(trade)
 
         # 获取缓存的委托信息
-        order: OrderData = self.orders.get(orderid, None)
+        order: OrderData | None = self.orders.get(orderid, None)
         if not order:
             return
 
@@ -767,7 +767,7 @@ class SecTdApi(TdApi):
             localid: str = str(error["localOrderID"])
             sessionid: str = str(error["sessionID"])
             orderid: str = f"{sessionid}_{localid}"
-            order: OrderData = self.orders.get(orderid, None)
+            order: OrderData | None = self.orders.get(orderid, None)
 
             if order:
                 dt: datetime = datetime.now()
@@ -784,7 +784,7 @@ class SecTdApi(TdApi):
             localid: str = str(error["localOrderID"])
             sessionid: str = str(error["sessionID"])
             orderid: str = f"{sessionid}_{localid}"
-            order: OrderData = self.orders.get(orderid, None)
+            order: OrderData | None = self.orders.get(orderid, None)
 
             if order:
                 dt: datetime = datetime.now()
@@ -843,9 +843,7 @@ class SecTdApi(TdApi):
             gateway_name=self.gateway_name
         )
 
-        contract.option_index = get_option_index(
-            contract.option_strike, data["contractID"]
-        )
+        contract.option_index = get_option_index(contract.option_strike, data["contractID"])    # type: ignore
 
         self.gateway.on_contract(contract)
 
@@ -907,7 +905,7 @@ class SecTdApi(TdApi):
         pos: PositionData = PositionData(
             symbol=data["securityID"],
             exchange=EXCHANGE_SEC2VT[data["exchangeID"]],
-            direction=Direction.NEt,
+            direction=Direction.NET,
             volume=data["totalQty"],
             price=data["avgPositionPrice"],
             gateway_name=self.gateway_name
@@ -921,7 +919,7 @@ class SecTdApi(TdApi):
 
         # 生成持仓键，并查询持仓缓存
         key: tuple = (data["securityOptionID"], data["entrustDirection"])
-        pos: PositionData = self.positions.get(key, None)
+        pos: PositionData | None = self.positions.get(key, None)
 
         # 如果没有持仓则初始化
         if not pos:
@@ -1031,7 +1029,7 @@ class SecTdApi(TdApi):
         )
         self.orders[orderid] = order
 
-        return order.vt_orderid     # type: ignore
+        return order.vt_orderid
 
     def cancel_order(self, req: CancelRequest) -> None:
         """委托撤单"""
@@ -1045,7 +1043,7 @@ class SecTdApi(TdApi):
             "sessionID": int(sessionid)
         }
 
-        order: OrderData = self.orders.get(req.orderid, None)
+        order: OrderData | None = self.orders.get(req.orderid, None)
 
         if not order:
             self.gateway.write_log("找不到撤单委托")
